@@ -1,0 +1,42 @@
+﻿Build started 13-08-2015 21:29:17.
+     1>Project "D:\DocWch\docwatch.vcxproj" on node 2 (Build target(s)).
+     1>C:\Program Files (x86)\MSBuild\Microsoft.Cpp\v4.0\V110\Microsoft.CppBuild.targets(346,5): warning MSB8004: Output Directory does not end with a trailing slash.  This build instance will add the slash as it is required to allow proper evaluation of the Output Directory.
+     1>ClCompile:
+         C:\Program Files (x86)\Microsoft Visual Studio 11.0\VC\bin\x86_amd64\CL.exe /c /ID:\plugin\external\dva\third_party\boost_libraries /ID:\plugin\external\dva\third_party\adobe_source_libraries /Zi /nologo /W3 /WX /O2 /Ob2 /Oi /Ot /D _CRT_SECURE_NO_DEPRECATE /D STRICT /D NDEBUG /D _ITERATOR_DEBUG_LEVEL=0 /D _VC80_UPGRADE=0x0710 /D _SCL_SECURE_NO_DEPRECATE /D _CRT_SECURE_NO_DEPRECATE /D DVAUI_DATA_DELETER_PARAM_OPTIONAL=1 /D DVA_ENABLE_LEGACY_SKIN=1 /D DVA_ENABLE_AGM_DRAWBOT=0 /D DVA_ASL_SUPPORT=1 /D ID_DROVER_ENABLE=1 /D DVA_COCOA_UI=0 /D ID_COCOA_ENABLE=0 /D OWL_COCOA_ENABLE=0 /D UICANVAS_COCOA_ENABLE=0 /D OWL_TARGET_PLATFORM_ENABLE=1 /D BOOST_ALL_DYN_LINK /D BOOST_REGEX_USE_CPP_LOCALE /D BOOST_REGEX_NON_RECURSIVE /D BOOST_HAS_ICU=1 /D BOOST_FILESYSTEM_VERSION=3 /D BOOST_CHRONO_HEADER_ONLY /D BOOST_SIGNALS_NO_DEPRECATION_WARNING /D ID_NO_DIRECT_DRAWING_ALLOWED=1 /D DVA_USE_WIDECHAR_AS_UTF16CHAR_ON_WIN /D DVA_ENABLE_ACCESSIBILITY=0 /D DVA_MAC_COCOA_POPUPWINDOW_POST_RC_FIX=1 /D SC_NO_WIN_STDINT_H=1 /D U_HAVE_INT32_T=1 /D U_HAVE_UINT32_T=1 /D _WINDLL /GF /Gm- /EHsc /MD /GS- /Gy /fp:precise /Zc:wchar_t /Zc:forScope /Yu"VCPlugInHeaders.h" /Fp"objRx64\docwatch\docwatch.pch" /Fo"objRx64\docwatch\\" /Fd"objRx64\docwatch\vc110.pdb" /Gd /TP /errorReport:prompt /vmg @"docwatchcpp.rsp" source\DocWchResponder.cpp
+         DocWchResponder.cpp
+       PreLinkEvent:
+         merge_res.cmd "objRx64\docwatch\"  DocWch & echo Deleting old resources... & del /f /s "C:\Program Files\Adobe\Adobe InDesign CC 2015\Plug-Ins\MY_PLUGIN\(docwatch.sdk Resources)\"*.idrc > objRx64\docwatch\prevDeletedResources.txt &  xcopy /Q /E "objRx64\docwatch\"*.idrc "C:\Program Files\Adobe\Adobe InDesign CC 2015\Plug-Ins\MY_PLUGIN\(docwatch.sdk Resources)\" /Y
+         :VCEnd
+         merge_res.cmd - calling ConcatRes
+                 1 file(s) copied.
+         ConcatRes skipped since "objRx64\docwatch"\DocWch.fres is an empty file.
+         merge_res.cmd done.
+         Deleting old resources... 
+         11 File(s) copied
+       Link:
+         C:\Program Files (x86)\Microsoft Visual Studio 11.0\VC\bin\x86_amd64\link.exe /ERRORREPORT:PROMPT /OUT:"C:\Program Files\Adobe\Adobe InDesign CC 2015\Plug-Ins\MY_PLUGIN\docwatch.sdk.pln" /INCREMENTAL:NO /NOLOGO ..\plugin\build\win\objrx64\PMRuntime.lib ..\plugin\build\win\objrx64\Public.lib D:\plugin\external\dva\third_party\boost_libraries\bin.v2\libs\boost_system\lib\win\release\64\boost_system.lib D:\plugin\build\win\objrx64\WidgetBin.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"releasex64\docwatch.pdb" /SUBSYSTEM:WINDOWS /OPT:REF /OPT:ICF /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:"..\..\..\build\win\objRx64\docwatch/docwatch.lib" /MACHINE:X64 /IGNORE:4089 /DLL objRx64\docwatch\DocWch.res
+         objRx64\docwatch\PlugInStatics.obj
+         objRx64\docwatch\SDKPlugInEntrypoint.obj
+         objRx64\docwatch\MyActiveSelectionObserver.obj
+         objRx64\docwatch\MyObserver.obj
+         objRx64\docwatch\DocWchActionComponent.obj
+         objRx64\docwatch\DocWchID.obj
+         objRx64\docwatch\DocWchNoStrip.obj
+         objRx64\docwatch\DocWchResponder.obj
+         objRx64\docwatch\DocWchServiceProvider.obj
+         objRx64\docwatch\DocWchUtils.obj
+         objRx64\docwatch\json.obj
+         objRx64\docwatch\TriggerResourceDeps.obj
+         objRx64\docwatch\VCPlugInHeaders.obj
+            Creating library ..\..\..\build\win\objRx64\docwatch/docwatch.lib and object ..\..\..\build\win\objRx64\docwatch/docwatch.exp
+         docwatch.vcxproj -> C:\Program Files\Adobe\Adobe InDesign CC 2015\Plug-Ins\MY_PLUGIN\docwatch.sdk.pln
+       PostBuildEvent:
+         restore_res.cmd "objRx64\docwatch\"  DocWch
+         :VCEnd
+                 1 file(s) copied.
+         restore_res.cmd done.
+     1>Done Building Project "D:\DocWch\docwatch.vcxproj" (Build target(s)).
+
+Build succeeded.
+
+Time Elapsed 00:00:01.27

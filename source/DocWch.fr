@@ -1,0 +1,247 @@
+//========================================================================================
+//  
+//  $File: $
+//  
+//  Owner: ShankyDoodle
+//  
+//  $Author: $
+//  
+//  $DateTime: $
+//  
+//  $Revision: $
+//  
+//  $Change: $
+//  
+//  Copyright 1997-2012 Adobe Systems Incorporated. All rights reserved.
+//  
+//  NOTICE:  Adobe permits you to use, modify, and distribute this file in accordance 
+//  with the terms of the Adobe license agreement accompanying it.  If you have received
+//  this file from a source other than Adobe, then your use, modification, or 
+//  distribution of it requires the prior written permission of Adobe.
+//  
+//========================================================================================
+
+#include "VCPlugInHeaders.h"
+
+// General includes:
+#include "MenuDef.fh"
+#include "ActionDef.fh"
+#include "ActionDefs.h"
+#include "AdobeMenuPositions.h"
+#include "LocaleIndex.h"
+#include "PMLocaleIds.h"
+#include "StringTable.fh"
+#include "ObjectModelTypes.fh"
+#include "ShuksanID.h"
+#include "ActionID.h"
+#include "CommandID.h"
+#include "WorkspaceID.h"
+#include "WidgetID.h"
+#include "BuildNumber.h"
+#include "PlugInModel_UIAttributes.h"
+#include "WinRezFlags.h"
+#include "BuildNumber.h"
+
+// Project includes:
+#include "DocWchID.h"
+#include "DocumentID.h"
+#include "GenericID.h"
+#include "ShuksanID.h"
+#include "TextID.h"
+
+
+#ifdef __ODFRC__
+
+/*
+// Plugin version definition.
+*/
+resource PluginVersion (kSDKDefPluginVersionResourceID)
+{
+	kTargetVersion,
+	kDocWchPluginID,
+	kSDKDefPlugInMajorVersionNumber, kSDKDefPlugInMinorVersionNumber, 	
+	kSDKDefHostMajorVersionNumber, kSDKDefHostMinorVersionNumber,
+	kDocWchCurrentMajorFormatNumber, kDocWchCurrentMinorFormatNumber,
+	{ kInDesignProduct },
+	{ kWildFS },
+	kUIPlugIn,
+	kDocWchVersion
+};
+
+
+/*
+//	Boss class definition.
+*/
+resource ClassDescriptionTable(kSDKDefClassDescriptionTableResourceID)
+{{{
+
+	/**
+	This boss provides the service of responding to document file actions.
+	It has two interfaces: one that tells InDesign what kind of service is
+	provided, and a second to provide the service.
+	@ingroup docwatch
+	*/
+	Class 
+	{
+		kDocWchResponderServiceBoss,
+		kInvalidClass,
+		{
+			/** 
+			Identifies this boss as providing a responder service for 
+			multiple document actions, such as for doc open, close, etc. 
+			If only one service was needed, then we'd reuse an API-defined 
+			implementation ID listed in DocumentID.h.
+			*/
+			IID_IK2SERVICEPROVIDER,	kDocWchServiceProviderImpl,
+			/** 
+			Performs the responder service. This implementation delivers
+			every service promised by the IK2ServiceProvider implementation.
+			*/
+			IID_IRESPONDER,	kDocWchResponderImpl,
+		}
+	},
+
+	/**
+	 This boss class provides the actions invoked by this plug-in's
+	 sub-menu items. It supports two interfaces: 
+	 IActionComponent and IPMPersist. We provide the implementation 
+	 for IActionComponent in DocWchActionComponent.cpp. The other
+	 default implementation is provided by the API.
+	@ingroup docwatch
+	*/
+	Class
+	{
+		kDocWchActionComponentBoss,
+		kBaseActionComponentBoss,
+		{
+			/** Handles the actions from the menu. */
+			IID_IACTIONCOMPONENT, kDocWchActionComponentImpl,
+		}
+	},
+
+	AddIn
+	{
+		kTextStoryBoss,
+		kInvalidClass,
+		{
+			IID_IMYOBSERVER, kMyObserverImpl,
+		}
+	},
+
+	AddIn
+	{
+		kDocBoss,
+		kInvalidClass,
+		{
+			IID_IMYACTIVESELECTIONOBSERVER,kMyActiveSelectionObserverImpl,
+		}
+	},
+
+}}};
+
+
+/*
+// Implementation definition.
+*/
+resource FactoryList (kSDKDefFactoryListResourceID) 
+{
+	kImplementationIDSpace,
+	{
+		#include "DocWchFactoryList.h"
+	}
+};
+
+
+/*
+// Menu definition.
+*/
+resource MenuDef (kSDKDefMenuResourceID)
+{
+	{
+		// The About Plug-ins sub-menu item for this plug-in.
+		kDocWchAboutActionID,			// ActionID (kInvalidActionID for positional entries)
+		kDocWchAboutMenuPath,			// Menu Path.
+		kSDKDefAlphabeticPosition,		// Menu Position.
+		kSDKDefIsNotDynamicMenuFlag,	// kSDKDefIsNotDynamicMenuFlag or kSDKDefIsDynamicMenuFlag.
+
+		kDocWchUseResponderActionID,
+		kDocWchTargetMenuPath,
+		kDocWchUseResponderMenuItemPosition,
+		kSDKDefIsNotDynamicMenuFlag,
+
+	}
+};
+
+
+/*
+// Action definition.
+*/
+resource ActionDef (kSDKDefActionResourceID)
+{
+	{ 
+		kDocWchActionComponentBoss, 		// ClassID of boss class that implements the ActionID.
+		kDocWchAboutActionID,				// ActionID.
+		kDocWchAboutMenuKey,					// Sub-menu string.
+		kHelpMenuActionArea,						// Area name (see ActionDefs.h).
+		kNormalAction,							// Type of action (see ActionDefs.h).
+		kDisableIfLowMem,						// Enabling type (see ActionDefs.h).
+		kInvalidInterfaceID,					// Selection InterfaceID this action cares about or kInvalidInterfaceID.
+		kSDKDefInvisibleInKBSCEditorFlag,	// kSDKDefVisibleInKBSCEditorFlag or kSDKDefInvisibleInKBSCEditorFlag.
+
+		kDocWchActionComponentBoss,
+		kDocWchUseResponderActionID,		
+		kDocWchUseResponderMenuItemKey,		
+		kOtherActionArea,			
+		kNormalAction,				
+		kCustomEnabling|kDisableIfLowMem,	
+		kInvalidInterfaceID,		
+		kSDKDefInvisibleInKBSCEditorFlag,
+				
+	}
+};
+
+
+/*
+// LocaleIndex
+// The LocaleIndex should have indicies that point at your
+// localizations for each language system that you are 
+// localized for.
+*/
+/*
+// String LocaleIndex.
+*/
+resource LocaleIndex (kSDKDefStringsResourceID)
+{
+	kStringTableRsrcType,
+	{
+		kWildFS, k_enUS, kSDKDefStringsResourceID + index_enUS
+		kInDesignJapaneseFS, k_jaJP, kSDKDefStringsResourceID + index_jaJP
+		
+		kWildFS, k_Wild, kSDKDefStringsResourceID + index_enUS
+	}
+};
+
+resource LocaleIndex (kSDKDefStringsNoTransResourceID)
+{
+	kStringTableRsrcType,
+	{
+		kWildFS, k_Wild, kSDKDefStringsNoTransResourceID + index_enUS
+	}
+};
+
+resource StringTable (kSDKDefStringsNoTransResourceID + index_enUS)
+{
+	k_enUS,									// Locale Id
+	kEuropeanMacToWinEncodingConverter,		// Character encoding converter
+	{
+		// No-Translate strings go here:		
+	}
+};
+
+
+#endif // __ODFRC__
+
+#include "DocWch_enUS.fr"
+#include "DocWch_jaJP.fr"
+
+// End, DocWch.fr.
