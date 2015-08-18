@@ -57,6 +57,9 @@ using namespace std;
 #include "IActiveContext.h"
 #include "IAttributeStrand.h"
 #include "IMultiColumnTextFrame.h"
+#include "ITextFrameColumn.h"
+#include "IHierarchy.h"
+#include "IGeometryFacade.h"
 
 // Implementation includes:
 #include "CreateObject.h"
@@ -94,10 +97,16 @@ public:
 private:
 	ErrorCode attachDetachStoryObserver(UIDRef storyUIDRef, bool16 bAttach);
 	void documentTraversal(UIDRef docRef ,bool16 val);
-	json::Object GetCoordObject(const PMRect r);
-	void charParStyle(ITextModel* textModel);
-	void getParaStyleInformation(IAttributeStrand* xyz,IWorkspace* theWS,int32 start,int32 count);
-	void getCaraStyleInformation(IAttributeStrand* icastrand,IWorkspace* theWS,int32 start,int32 count);
+	json::Object GetCoordObject(PMRect r);
+	json::Object charParStyle(ITextModel* textModel,ofstream& textDataFile);
+	void getParaStyleInformation(IAttributeStrand* xyz,IWorkspace* theWS,int32 start,int32 count,json::Array & paraStyleArray);
+	void getCaraStyleInformation(IAttributeStrand* icastrand,IWorkspace* theWS,int32 start,int32 count,json::Array & caraStyleArray);
+	void getTextFrameData(ITextModel* textModel,ofstream& textDataFile);
+	json::Object getSpreadDimension(PMRect node);
+	void getTextFrameDimension(IMultiColumnTextFrame* MCF,json::Object & frameObject,PMMatrix pb2page);
+	void generateTextContentFileGetStyle(IMultiColumnTextFrame* MCF,json::Object & frameObject,int32 spreadIndex,int32 pageIndex,int32 frameIndex);
+
+
 };
 
 
@@ -379,167 +388,284 @@ break;
 */
 
 
-void DocWchResponder::documentTraversal(UIDRef docRef ,bool16 bAttach)
+void DocWchResponder::documentTraversal(UIDRef docRef ,bool16 bAttach) //doc traverse + call to chara para style 
 {
-
-
-
-	/*
-	const PMReal tlx;
-	const PMReal tly;
-	const PMReal rbx;
-	const PMReal rby;
-	*/
-	/*
-	PMString data("This is to be written inside a text file"); 
-	PMString path("D:\\temp.txt"); 
-	IDFile txtFile(path); 
-	IPMStream * txtFileOutStream = StreamUtil::CreateFileStreamWriteLazy (txtFile); 
-	if(txtFileOutStream == nil)  {CAlert::InformationAlert("txtFileOutStream failed");	}
-	*/
-
-	CAlert::InformationAlert("documentTraversal");
 	ofstream outfile;
-	outfile.open("D:\\DocWch\\temp.txt");
-
-	outfile <<endl<< endl;
-
+	outfile.open("D:\\DocWch\\GeneratedFiles\\json.txt");
 	int graphicFrameCount=0, textFrameCount=0;
 	do
 	{
 		if(!docRef)	           {CAlert::InformationAlert("docRef failed");		break;  }
 
-		InterfacePtr<IDocument> document(docRef, UseDefaultIID());			if(!document)	{CAlert::InformationAlert("document failed");	break;	}
+		InterfacePtr<IDocument> document(docRef, UseDefaultIID());			
+		if(!document)	{CAlert::InformationAlert("document failed");	break;	}
 
 		PMString docName;
 		document->GetName(docName);
 
 		std::string documentName= docName.GetPlatformString();       
 		json::Object docObject;
-		docObject["Name"] = documentName; 
+		docObject["DocumentName"] = documentName; 
 
-		IDataBase* database = ::GetDataBase(document);						if(!database)          {CAlert::InformationAlert("database failed");	break;	}
+		IDataBase* database = ::GetDataBase(document);						
+		if(!database)   {CAlert::InformationAlert("database failed");	break;	}
 
-		InterfacePtr<ISpreadList> spreadList(document, UseDefaultIID());    if(!spreadList)        {CAlert::InformationAlert("spreadList failed");	break;	}
+		InterfacePtr<ISpreadList> spreadList(document, UseDefaultIID());    
+		if(!spreadList) {CAlert::InformationAlert("spreadList failed");	break;	}
 
 		UIDList frameList(database);
 		json::Array spreadListArray;
 
-		int32 spreadCount = spreadList->GetSpreadCount();                                     
-		for (int32 spreadIndex = 0; spreadIndex < spreadCount; spreadIndex++ )
+		int32 spreadCount = spreadList->GetSpreadCount();  
+		int32 spreadIndex;
+		for (spreadIndex = 0; spreadIndex < spreadCount; spreadIndex++ )
 		{
 			json::Object spreadObject;
 
 			PMString spreadIndexNum;
 			spreadIndexNum.AppendNumber(spreadIndex);
 			std::string sprInd= spreadIndexNum.GetPlatformString();       			
-			spreadObject["Index"]=sprInd;
+			spreadObject["SpreadIndex"]=sprInd;
+
+			//PMMatrix page2pb = ::InnerToPasteboardMatrix(pageGeometry);
+			//PMMatrix pb2page = page2pb;
+			//pb2page.Invert ();
+
+			InterfacePtr<IGeometry> iSpreadGeometry(spreadList->QueryNthSpread(spreadIndex));
+			if(!iSpreadGeometry) {CAlert::InformationAlert("iSpreadGeometry failed.");	break;	}
+			/*
+			PMMatrix transformMatrix;
+
+			InterfacePtr<IHierarchy> hierarchy(frameList.GetRef(spreadIndex), UseDefaultIID());
+			if (hierarchy) 
+			{
+			transformMatrix=TraceNodeGeometryAndTransform(hierarchy);
+			}
+			*/
 
 			UIDRef spreadUIDRef(database, spreadList->GetNthSpreadUID(spreadIndex));
 
-			InterfacePtr<ISpread> spread(spreadUIDRef, UseDefaultIID());	if(!spread)			{CAlert::InformationAlert("spread failed");		break;	}
+			PMMatrix page2pb3 = ::InnerToPasteboardMatrix(iSpreadGeometry);   //InnerToPasteboardMatrix
+			PMMatrix pb2page3 = page2pb3;
+			pb2page3.Invert ();
+			PMRect spreadPMRect;
+
+			//PMRect spreadPMRect = iSpreadGeometry->GetStrokeBoundingBox();                                        //(pb2page);
+			//PBPMRect spreadPMRect = Utils<Facade::IGeometryFacade>()->GetItemBounds( spreadUIDRef, Transform::PasteboardCoordinates(), Geometry::PathBounds());
+			//::TransformInnerRectToPasteboard(iSpreadGeometry, &spreadPMRect);
+			//::TransformInnerRectToSpread(iSpreadGeometry, &spreadPMRect);
+			//json::Object spreadDim;
+			//spreadDim=this->getSpreadDimension(spreadPMRect);
+			//spreadObject["Spread Dim"]=spreadDim;
+			/*
+			json::Object spreadCoordObject;	
+			spreadCoordObject=this->GetCoordObject(spreadPMRect);						
+			spreadObject["Spread Dim"]=spreadCoordObject;
+			*/
+
+
+			InterfacePtr<ISpread> spread(spreadUIDRef, UseDefaultIID());	
+			if(!spread)			{CAlert::InformationAlert("spread failed");		break;	}
+
 
 			int32 numberOfPages = spread->GetNumPages();
 			PMString noPages;
 			noPages.AppendNumber(numberOfPages);
 
-
-
 			json::Array pageListArray;
-			for (int32 nPage = 0; nPage < numberOfPages; nPage++ )                                       
+			int32 pageIndex;
+			for (pageIndex = 0; pageIndex < numberOfPages; pageIndex++ )                                       
 			{
 				json::Object pageObject;
 				json::Array pageCoordArray;
 
-				IGeometry * pageGeometry = spread->QueryNthPage(nPage);
+				IGeometry * pageGeometry = spread->QueryNthPage(pageIndex);
 				if(!pageGeometry) {CAlert::InformationAlert("pageGeometry failed.");	break;	}
+
 				const PMRect r1 = pageGeometry->GetStrokeBoundingBox();
-				json::Object coordObject;	
-				coordObject=this->GetCoordObject(r1);						
-				pageCoordArray.push_back(coordObject);
 
+				json::Object pageCoordObject;	
+				pageCoordObject=this->GetCoordObject(r1);						
+				pageCoordArray.push_back(pageCoordObject);
 
+				if(pageIndex==0)
+				{
+					PMMatrix page2pbLocal = ::InnerToPasteboardMatrix(pageGeometry);   //InnerToPasteboardMatrix
+					PMMatrix pb2pageLocal = page2pbLocal ;
+					pb2pageLocal.Invert ();
+					spreadPMRect = iSpreadGeometry->GetPathBoundingBox(pb2pageLocal); 
+				}
+
+				PMMatrix page2pb = ::InnerToPasteboardMatrix(pageGeometry);   //InnerToPasteboardMatrix
+				PMMatrix pb2page = page2pb;
+				pb2page.Invert ();
 
 				PMString pageIndexNum;
-				pageIndexNum.AppendNumber(nPage);
-
-				std::string pageIndexStr= pageIndexNum.GetPlatformString();                                        
+				pageIndexNum.AppendNumber(pageIndex);
 
 				UIDList pageItemList(database);
-				spread->GetItemsOnPage(nPage, &pageItemList, kFalse, kFalse   );
+				spread->GetItemsOnPage(pageIndex, &pageItemList, kFalse, kFalse  );
 				// don't include the page object itself
 				// don't include items that lie on the pasteboard because we only want what's on the page?
 
-				json::Array coordObjectArray;
 
+				int32 frameIndex;
 				int32 pageItemListLength = pageItemList.Length();
-				for (int32 j = 0; j < pageItemListLength; j++ )
+				json::Array frameListArray;
+				for (frameIndex = 0; frameIndex < pageItemListLength; frameIndex++ )
 				{
-					UIDRef pageItemRef = pageItemList.GetRef(j);
+					json::Object frameObject;
+
+					frameObject["FrameIndex:"]=frameIndex;
+
+					UIDRef pageItemRef = pageItemList.GetRef(frameIndex);
 
 
 					InterfacePtr<IGraphicFrameData> graphicFrameData(pageItemRef, UseDefaultIID());
-					/*if (graphicFrameData != nil) 
-					{
-					int32 absolPage = this->GlobalFromLocalPageIndex(spreadList, spreadIndex, nPage);
-					this->addGraphicFrameDescription(docRef,
-					pageItemRef,
-					collectFrames, 
-					absolPage);
-					}*/
-					if(graphicFrameData)	{	graphicFrameCount++;}
+					if(graphicFrameData)		{	graphicFrameCount++;}
+
+					//InterfacePtr<IHierarchy> graphicFrameHierarchy(graphicFrameData, UseDefaultIID());
+					//if(!graphicFrameHierarchy)	{	CAlert::InformationAlert("graphicFrameHierarchy failed.");	break;}
+					//InterfacePtr<IGeometry> fGeometry(graphicFrameHierarchy, UseDefaultIID());
+					//if(!fGeometry)	{	CAlert::InformationAlert("fGeometry failed.");	break;}
 
 
-					///////////////////////////////////
-									
 					UID fromMultiColumnItemUID = graphicFrameData->GetTextContentUID();
 					InterfacePtr<IMultiColumnTextFrame> MCF(database, fromMultiColumnItemUID, UseDefaultIID());
-					if (MCF == nil)			{	CAlert::InformationAlert("MFC failed.");			break;		}
-					
-					InterfacePtr<ITextModel> textModel(MCF->QueryTextModel());
-					
-					//UIDRef textModelUIDRef(database, graphicFrameData->GetTextContentUID());
-					//InterfacePtr<ITextModel> textModel(graphicFrameData->GetTextContentUID(), UseDefaultIID());
-					
-					if(textModel)
-					{
-						InterfacePtr<IFrameList> frameList(textModel->QueryFrameList());
+					if (MCF == nil)			{	CAlert::InformationAlert("MCF failed.");			}//break;s
 
-						int32 frameCount = frameList->GetFrameCount();
-						textFrameCount=textFrameCount+frameCount;
-						CAlert::InformationAlert("Hiii ...textModel created.");
-						this->charParStyle(textModel);
+					if(MCF!=nil)
+					{
+						PMString fi;
+						fi.AppendNumber(frameIndex);
+						//std::string frameIndexStr= fi.GetPlatformString();
+
+						PMString pi;
+						pi.AppendNumber(pageIndex);
+//						std::string pageIndexStr= fi.GetPlatformString();
+
+						PMString si;
+						si.AppendNumber(spreadIndex);
+	//					std::string spreadIndexStr= fi.GetPlatformString();
+						CAlert::InformationAlert("All Indexes:"+si+","+pi+","+fi);
+						this->getTextFrameDimension(MCF,frameObject,pb2page);
+						this->generateTextContentFileGetStyle(MCF,frameObject,spreadIndex,pageIndex,frameIndex);
+
+						/*
+						InterfacePtr<IFrameList> frameList(MCF->QueryFrameList());
+
+						for (int32 i = 0; i < frameList->GetFrameCount(); i++) 
+						{
+
+						InterfacePtr<ITextFrameColumn> textFrameColumn(frameList->QueryNthFrame(i));
+						if (textFrameColumn != nil)
+						{
+						InterfacePtr<IGeometry> textFrameGeometry(textFrameColumn, UseDefaultIID());
+						if (textFrameGeometry != nil)
+						{
+						json::Object frameCoordObject;		
+						PMRect textFrameBounds = textFrameGeometry->GetPathBoundingBox(pb2page);
+						::TransformInnerRectToPasteboard(textFrameGeometry, &textFrameBounds);
+						//::TransformInnerRectToParent( textFrameGeometry,&textFrameBounds);
+
+
+						frameCoordObject=this->GetCoordObject(textFrameBounds);						
+						frameObject["Frame Coord:"]=frameCoordObject;
+						}
+						else
+						{
+						CAlert::InformationAlert("textFrameGeometry failed.");
+						}
+						}
+						else
+						{
+						CAlert::InformationAlert("ITextFrameColumn failed.");
+						}
+						}
+
+						InterfacePtr<ITextModel> textModel(MCF->QueryTextModel());
+						if(textModel)
+						{
+						UIDRef textModelRef=::GetUIDRef(textModel);
+
+						PMString fi;
+						fi.AppendNumber(frameIndex);
+						std::string frameIndexStr= fi.GetPlatformString();
+
+						ofstream textDataFile;
+						textDataFile.open("D:\\DocWch\\GeneratedFiles\\textDataFile_"+frameIndexStr+".txt");
+
+						this->getTextFrameData(textModel,textDataFile);
+						textDataFile<<endl<< endl;
+
+						json::Object frameStyleObject;
+
+						//frameStyleObject=this->charParStyle(textModel,textDataFile);/////////////////////////////////////////////////
+						//frameObject["FrameContentStyle"]=frameStyleObject;//////////////////////////////////////////////////////////////////
+
+						textDataFile.close();
+						}
+						else
+						{
+						CAlert::InformationAlert("Hiii ...textModel failed.");
+						}
+						*/
 					}
 					else
 					{
-						CAlert::InformationAlert("Hiii ...textModel failed.");
+						InterfacePtr<IGeometry> fGeometry(pageItemRef, UseDefaultIID());
+						if(!fGeometry)	{	CAlert::InformationAlert("fGeometry failed");	break;	}
+
+
+						json::Object frameCoordObject;				
+
+						/*
+						PMRect bBoxInner = Utils<Facade::IGeometryFacade>()->GetItemBounds( ::GetUIDRef(fGeometry), Transform::InnerCoordinates(), Geometry::OuterStrokeBounds());
+						PMRect bBoxParent = Utils<Facade::IGeometryFacade>()->GetItemBounds( ::GetUIDRef(fGeometry), Transform::ParentCoordinates(), Geometry::OuterStrokeBounds());
+						PBPMRect bBoxPasteboard = Utils<Facade::IGeometryFacade>()->GetItemBounds( ::GetUIDRef(fGeometry), Transform::PasteboardCoordinates(), Geometry::OuterStrokeBounds());
+						*/
+						/*
+						PMReal a = pb2page.operator[](0);	PMString aS; aS.AppendNumber(a);
+						PMReal b = pb2page.operator[](1);	PMString bS; bS.AppendNumber(b);
+						PMReal c = pb2page.operator[](2);	PMString cS; cS.AppendNumber(c);
+						PMReal d = pb2page.operator[](3);	PMString dS; dS.AppendNumber(d);
+						PMReal e = pb2page.operator[](4);	PMString eS; eS.AppendNumber(e);
+						PMReal f = pb2page.operator[](5);	PMString fS; fS.AppendNumber(f);
+						CAlert::InformationAlert("[a,b,c,d,e,f]:"+aS+","+bS+","+cS+","+dS+","+eS+","+fS);
+						*/
+						PMRect r = fGeometry->GetPathBoundingBox(pb2page);  //GetStrokeBoundingBox(pb2page);
+						frameCoordObject=this->GetCoordObject(r);	
+						frameObject["FrameCoord:"]=frameCoordObject;
+
+						/*
+						frameCoordObject=this->GetCoordObject(bBoxInner);
+						frameCoordObject=this->GetCoordObject(bBoxParent);
+						frameCoordObject=this->GetCoordObject(bBoxPasteboard);
+
+
+						frameObject["Frame Coord:1"]=frameCoordObject;
+						frameObject["Frame Coord:2"]=frameCoordObject;
+						frameObject["Frame Coord:3"]=frameCoordObject;
+
+						//frameObject["FrameContentStyle"]=frameStyleObject;
+						*/
 					}
-
-					InterfacePtr<IGeometry> fGeometry(pageItemRef, UseDefaultIID());
-					
-
-					if(!fGeometry)	{	CAlert::InformationAlert("fGeometry failed");	break;	}
-
-					json::Object coordObject;				
-
-
-					PMMatrix page2pb = ::InnerToPasteboardMatrix(pageGeometry);
-					PMMatrix pb2page = page2pb;
-					pb2page.Invert ();
-
-					const PMRect r = fGeometry->GetPathBoundingBox(pb2page);  //GetStrokeBoundingBox(pb2page);
-
-					coordObject=this->GetCoordObject(r);						
-					coordObjectArray.push_back(coordObject);
-
+					frameListArray.push_back(frameObject);
+					frameObject.Clear();
 				}
+				std::string pageIndexStr= pageIndexNum.GetPlatformString();    
 
-				pageObject["Index"]=pageIndexStr;
-				pageObject["Frames"]=coordObjectArray;
-				pageObject["Page_Co-ord"]=pageCoordArray;
+				pageObject["PageIndex"]=pageIndexStr;
+				pageObject["Frames"]=frameListArray;
+				pageObject["PageCoord"]=pageCoordArray;
 				pageListArray.push_back(pageObject);
 
 			}
+
+			json::Object spreadCoordObject;	
+			spreadCoordObject=this->getSpreadDimension(spreadPMRect);						
+			spreadObject["SpreadDim"]=spreadCoordObject;
+
 			spreadObject["Pages"]=pageListArray;
 			spreadListArray.push_back(spreadObject);
 		} 
@@ -548,11 +674,86 @@ void DocWchResponder::documentTraversal(UIDRef docRef ,bool16 bAttach)
 		outfile<<endl<<serialized_json_string<< endl;
 		outfile.close();	
 
+
 	} while(kFalse);	
 }
 
 
-json::Object DocWchResponder::GetCoordObject(const PMRect r)
+void DocWchResponder::getTextFrameDimension(IMultiColumnTextFrame* MCF,json::Object& frameObject,PMMatrix pb2page)
+{
+	InterfacePtr<IFrameList> frameList(MCF->QueryFrameList());
+
+	for (int32 i = 0; i < frameList->GetFrameCount(); i++) 
+	{
+
+		InterfacePtr<ITextFrameColumn> textFrameColumn(frameList->QueryNthFrame(i));
+		if (textFrameColumn != nil)
+		{
+			InterfacePtr<IGeometry> textFrameGeometry(textFrameColumn, UseDefaultIID());
+			if (textFrameGeometry != nil)
+			{
+				json::Object frameCoordObject;		
+				PMRect textFrameBounds = textFrameGeometry->GetPathBoundingBox(pb2page);
+				::TransformInnerRectToPasteboard(textFrameGeometry, &textFrameBounds);
+
+				frameCoordObject=this->GetCoordObject(textFrameBounds);						
+				frameObject["FrameCoord:"]=frameCoordObject;
+			}
+			else
+			{
+				CAlert::InformationAlert("textFrameGeometry failed.");
+			}
+		}
+		else
+		{
+			CAlert::InformationAlert("ITextFrameColumn failed.");
+		}
+	}
+
+
+}
+
+void DocWchResponder::generateTextContentFileGetStyle(IMultiColumnTextFrame* MCF,json::Object& frameObject,int32 spreadIndex,int32 pageIndex,int32 frameIndex)
+{
+	InterfacePtr<ITextModel> textModel(MCF->QueryTextModel());
+	if(textModel)
+	{
+		UIDRef textModelRef=::GetUIDRef(textModel);
+
+		PMString fi;
+		fi.AppendNumber(frameIndex);
+		std::string frameIndexStr= fi.GetPlatformString();
+
+		PMString pi;
+		pi.AppendNumber(pageIndex);
+		std::string pageIndexStr= pi.GetPlatformString();
+
+		PMString si;
+		si.AppendNumber(spreadIndex);
+		std::string spreadIndexStr= si.GetPlatformString();
+
+		ofstream textDataFile;
+		textDataFile.open("D:\\DocWch\\GeneratedFiles\\TextDataFile_"+spreadIndexStr+"_"+pageIndexStr+"_"+frameIndexStr+".txt");
+
+		this->getTextFrameData(textModel,textDataFile);
+
+
+		json::Object frameStyleObject;
+
+		frameStyleObject=this->charParStyle(textModel,textDataFile);
+		frameObject["FrameContentStyle"]=frameStyleObject;
+
+		textDataFile.close();
+	}
+	else
+	{
+		CAlert::InformationAlert("Hiii ...textModel failed.");
+	}
+}
+
+
+
+json::Object DocWchResponder::GetCoordObject( PMRect r)
 {
 
 	json::Object coordObject;
@@ -617,13 +818,11 @@ json::Object DocWchResponder::GetCoordObject(const PMRect r)
 	return coordObject;
 }
 
-
-
-void DocWchResponder::charParStyle(ITextModel* textModel)
+json::Object DocWchResponder::charParStyle(ITextModel* textModel,ofstream& textDataFile)
 {
-	CAlert::InformationAlert("--------------------111111111------------------");
+	json::Object frameStyleObject;
 	do
-	{		
+	{
 		/*//IDocument *doc = GetExecutionContextSession()->GetActiveContext()->GetContextDocument();
 		InterfacePtr<IDocument> document(docRef, UseDefaultIID());			if(!document)	{CAlert::InformationAlert("document failed");	break;	}
 		UIDRef ws = document->GetDocWorkSpace();
@@ -694,65 +893,35 @@ void DocWchResponder::charParStyle(ITextModel* textModel)
 
 		InterfacePtr<IAttributeStrand> icastrand((IAttributeStrand*)(textModel->QueryStrand(kCharAttrStrandBoss,IID_IATTRIBUTESTRAND)));
 		if (!icastrand)					{	CAlert::InformationAlert("icastrand Failed");					break;	}	
-		
+
 		IActiveContext* activeContext = GetExecutionContextSession()->GetActiveContext();
 		if (!activeContext)				{	CAlert::InformationAlert("activeContext Failed");					break;	}	
 
 		IWorkspace * theWS = activeContext->GetContextWorkspace();
 
+		json::Array paraStyleArray;
+		json::Array caraStyleArray;
 
-		this->getParaStyleInformation(ipastrand,theWS,start,count);/////////////////////////////////
-		this->getCaraStyleInformation(icastrand,theWS,start,count);
+		this->getParaStyleInformation(ipastrand,theWS,start,count,paraStyleArray);
+		this->getCaraStyleInformation(icastrand,theWS,start,count,caraStyleArray);
 
-
-
-		//InterfacePtr<IStyleInfo> caraStyleInfo(::GetDataBase(theWS),carastyle,UseDefaultIID());
-		//if(!caraStyleInfo)		{	CAlert::InformationAlert("caraStyleInfo failed");	break;	}
-		//
-		//PMString caraStyleName=caraStyleInfo->GetName();
-		//PMString charNumbers,charNumbers2;
-		//charNumbers.AppendNumber(count);
-		//charNumbers2.AppendNumber(count2);
-		//CAlert::InformationAlert("***caraStyleName is:"+caraStyleName+"\\\\\\"+charNumbers2);
-
+		frameStyleObject["ParaStyle"]=paraStyleArray;
+		frameStyleObject["CaraStyle"]=caraStyleArray;
 
 	}while(kFalse);
-
-
+	return frameStyleObject;
 }
 
-
-void DocWchResponder::getParaStyleInformation(IAttributeStrand* ipastrand,IWorkspace* theWS,int32 start,int32 count)
+void DocWchResponder::getParaStyleInformation(IAttributeStrand* ipastrand,IWorkspace* theWS,int32 start,int32 count,json::Array & paraStyleArray)
 {
-
 	do
 	{
-		/*
-		// isParaStyle = styleInfo->GetStyleType() == IStyleInfo::kParagraphStyle;
-
-		InterfacePtr<IStyleInfo> paraStyleInfo(::GetDataBase(theWS),parastyle,UseDefaultIID());
-		if(!paraStyleInfo)		{	CAlert::InformationAlert("paraStyleInfo failed");	break;	}
-
-
-		PMString paraStyleName=paraStyleInfo->GetName();
-		PMString charNumbers;
-		charNumbers.AppendNumber(count);
-		CAlert::InformationAlert("paraStyleName is:"+paraStyleName+"/////"+charNumbers);
-		UID nextParaStyle=paraStyleInfo->GetNextStyle();
-		if(UID!=NULL)
-		{
-		this->getParaStyleInformation(theWS,nextParaStyle);
-		}
-
-		*/
-
-		CAlert::InformationAlert("----------------getParaStyleInformation----------------------");
-
 		if(totalTextModelLength==start)
-		{
-			CAlert::InformationAlert("Reached to end.");
+		{	
 			break;
 		}
+
+		json::Object styleInfoObject;
 		start=start+count; 
 		int32 count2;
 
@@ -761,7 +930,7 @@ void DocWchResponder::getParaStyleInformation(IAttributeStrand* ipastrand,IWorks
 		count=count2;
 
 		IActiveContext* activeContext = GetExecutionContextSession()->GetActiveContext();
-		if (!activeContext)				{	CAlert::InformationAlert("activeContext Failed");					break;	}	
+		if (!activeContext)		{	CAlert::InformationAlert("activeContext Failed");	break;	}	
 
 		InterfacePtr<IStyleInfo> paraStyleInfo(::GetDataBase(theWS),parastyle,UseDefaultIID());
 		if(!paraStyleInfo)		{	CAlert::InformationAlert("paraStyleInfo failed");	break;	}
@@ -769,51 +938,44 @@ void DocWchResponder::getParaStyleInformation(IAttributeStrand* ipastrand,IWorks
 		PMString startCount,totLen;
 		startCount.AppendNumber(start);
 		totLen.AppendNumber(totalTextModelLength);
-		
-		
+
+		PMString charCount;
+		charCount.AppendNumber(count);
+
 		PMString paraStyleName=paraStyleInfo->GetName();
-		PMString charNumbers;
-		charNumbers.AppendNumber(count);		
-		CAlert::InformationAlert("paraStyleName is:"+paraStyleName+"&&"+charNumbers+" START: "+startCount+" TotLength:"+totLen);
+		PMString fromCharNumbers;
+		fromCharNumbers.AppendNumber(start);		
+		//CAlert::InformationAlert("paraStyleName is:"+paraStyleName+"&&"+fromCharNumbers+" START: "+startCount+" TotLength:"+totLen);
+		int32 toNum=start+count;
+		PMString toCharNumbers;
+		toCharNumbers.AppendNumber(toNum);
 
-		this->getParaStyleInformation(ipastrand,theWS,start,count);
+		std::string paraStyleNameString= paraStyleName.GetPlatformString();
+		std::string fromString= fromCharNumbers.GetPlatformString();
+		std::string toString= toCharNumbers.GetPlatformString();
+		std::string charCountStr= charCount.GetPlatformString();
 
-
+		styleInfoObject["ParaStyleName"]=paraStyleNameString;
+		styleInfoObject["StyleStart"]=fromString;
+		styleInfoObject["CharCount"]=charCountStr;
+		if(count!=0)
+			paraStyleArray.push_back(styleInfoObject);
+		//textDataFile<<"paraStyleName is:"<<paraStyleNameString<<"\t||applied from char number:"<<fromString<<"\t|| to :"<<toString<<endl;
+		this->getParaStyleInformation(ipastrand,theWS,start,count,paraStyleArray);
 
 	}while(kFalse);
 }
 
-void DocWchResponder::getCaraStyleInformation(IAttributeStrand* icastrand,IWorkspace* theWS,int32 start,int32 count)
+void DocWchResponder::getCaraStyleInformation(IAttributeStrand* icastrand,IWorkspace* theWS,int32 start,int32 count,json::Array & caraStyleArray)
 {
-
 	do
 	{
-		/*
-		// isParaStyle = styleInfo->GetStyleType() == IStyleInfo::kParagraphStyle;
-
-		InterfacePtr<IStyleInfo> paraStyleInfo(::GetDataBase(theWS),parastyle,UseDefaultIID());
-		if(!paraStyleInfo)		{	CAlert::InformationAlert("paraStyleInfo failed");	break;	}
-
-
-		PMString paraStyleName=paraStyleInfo->GetName();
-		PMString charNumbers;
-		charNumbers.AppendNumber(count);
-		CAlert::InformationAlert("paraStyleName is:"+paraStyleName+"/////"+charNumbers);
-		UID nextParaStyle=paraStyleInfo->GetNextStyle();
-		if(UID!=NULL)
-		{
-		this->getParaStyleInformation(theWS,nextParaStyle);
-		}
-
-		*/
-
-		CAlert::InformationAlert("----------------getCaraStyleInformation----------------------");
-
 		if(totalTextModelLength==start)
 		{
-			CAlert::InformationAlert("Reached to end.");
 			break;
 		}
+
+		json::Object styleInfoObject;
 		start=start+count; 
 		int32 count2;
 
@@ -822,21 +984,88 @@ void DocWchResponder::getCaraStyleInformation(IAttributeStrand* icastrand,IWorks
 		count=count2;
 
 		IActiveContext* activeContext = GetExecutionContextSession()->GetActiveContext();
-		if (!activeContext)				{	CAlert::InformationAlert("activeContext Failed");					break;	}	
+		if (!activeContext)		{	CAlert::InformationAlert("activeContext Failed");	break;	}	
 
 		InterfacePtr<IStyleInfo> caraStyleInfo(::GetDataBase(theWS),carastyle,UseDefaultIID());
 		if(!caraStyleInfo)		{	CAlert::InformationAlert("caraStyleInfo failed");	break;	}
-		
-		
 
 		PMString caraStyleName=caraStyleInfo->GetName();
-		PMString charNumbers;
-		charNumbers.AppendNumber(count);
-		CAlert::InformationAlert("caraStyleName is:"+caraStyleName+" && "+charNumbers);
+		PMString fromCharNumbers;
+		fromCharNumbers.AppendNumber(start);
+		//CAlert::InformationAlert("caraStyleName is:"+caraStyleName+" && "+charNumbers);
 
-		this->getCaraStyleInformation(icastrand,theWS,start,count);
+		int32 toNum=start+count;
+		PMString toCharNumbers;
+		toCharNumbers.AppendNumber(toNum);
 
+		PMString charCount;
+		charCount.AppendNumber(count);
 
+		std::string caraStyleNameString= caraStyleName.GetPlatformString();
+		std::string fromString= fromCharNumbers.GetPlatformString();
+		std::string toString= toCharNumbers.GetPlatformString();
+		std::string charCountStr= charCount.GetPlatformString();
+
+		styleInfoObject["CharaStyleName"]=caraStyleNameString;
+		styleInfoObject["StyleStart"]=fromString;
+		styleInfoObject["CharCount"]=charCountStr;
+
+		if(count!=0)
+			caraStyleArray.push_back(styleInfoObject);
+		//textDataFile<<"caraStyleName is:"<<caraStyleNameString<<"\t||applied from char number:"<<fromString<<"\t|| to :"<<toString<<endl;
+		this->getCaraStyleInformation(icastrand,theWS,start,count,caraStyleArray);
 
 	}while(kFalse);
+}
+
+void DocWchResponder::getTextFrameData(ITextModel* textModel,ofstream& textDataFile)
+{
+	int32 totLength;
+	WideString result;
+	PMString fResult;
+	totLength=textModel->TotalLength();
+	TextIterator begin(textModel,0);
+	TextIterator end(textModel,totLength);                   
+	for (TextIterator iter = begin; iter<end; iter++) 
+	{
+		const UTF32TextChar characterCode = *iter;
+		result.Append(characterCode);
+	} 
+	fResult.Append(result);
+	std::string textData= fResult.GetPlatformString();
+	textDataFile<<textData;
+}
+
+json::Object DocWchResponder::getSpreadDimension(PMRect spreadPMRect)
+{
+	json::Object sprDim,refer;
+
+	PMReal a = spreadPMRect.Top();		PMString top;		top.AppendNumber(a);
+	PMReal b = spreadPMRect.Left();		PMString left;		left.AppendNumber(b);
+	PMReal c = spreadPMRect.Bottom();	PMString bottom;	bottom.AppendNumber(c);
+	PMReal d = spreadPMRect.Right();	PMString right;		right.AppendNumber(d);
+
+	std::string topStr= top.GetPlatformString();
+	std::string leftStr= left.GetPlatformString();
+	std::string bottomStr= bottom.GetPlatformString();
+	std::string rightStr= right.GetPlatformString();
+	refer["Top"]=topStr;
+	refer["Left"]=leftStr;
+	refer["Bottom"]=bottomStr;
+	refer["Right"]=rightStr;
+
+
+	PMReal spreadHeight=spreadPMRect.Height();
+	PMReal spreadWidth=spreadPMRect.Width();
+	PMString sprHgt;	sprHgt.AppendNumber(spreadHeight);
+	PMString sprWdt;	sprWdt.AppendNumber(spreadWidth);
+
+
+	std::string sprHgtStr= sprHgt.GetPlatformString();
+	std::string sprWdtStr= sprWdt.GetPlatformString();
+	sprDim["SpreadHeight"]=sprHgtStr;
+	sprDim["SpreadWidth"]=sprWdtStr;
+	sprDim["SpreadReference"]=refer;
+
+	return sprDim;
 }

@@ -1,4 +1,0 @@
-
-
-
-{"Name":"Untitled-1","Spreads":[{"Index":"0","Pages":[{"Frames":[{"LeftBottom":"(-120,463.5)","RightBottom":"(120,463.5)","RightTop":"(120,328.5)","TopLeft":"(-120,328.5)"}],"Index":"0","Page_Co-ord":[{"LeftBottom":"(0,792)","RightBottom":"(612,792)","RightTop":"(612,0)","TopLeft":"(0,0)"}]}]}]}
