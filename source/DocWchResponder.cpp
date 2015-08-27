@@ -124,15 +124,17 @@ private:
 	void documentTraversal(UIDRef docRef, bool16 val);
 	json::Object GetCoordObject(PMRect r);
 	json::Object charParStyle(ITextModel* textModel);
-	void getParaStyleInformation(IAttributeStrand* xyz, IWorkspace* theWS, int32 start, int32 count, json::Array & paraStyleArray);
-	void getCaraStyleInformation(IAttributeStrand* icastrand, IWorkspace* theWS, int32 start, int32 count, json::Array & caraStyleArray);
-	std::string getTextFrameData(ITextModel* textModel);
+	void getParaStyleInformation(IAttributeStrand* xyz, IWorkspace* theWS, int32 start, int32 count, json::Array & paraStyleArray, ITextModel* textModel);
+	void getCaraStyleInformation(IAttributeStrand* icastrand, IWorkspace* theWS, int32 start, int32 count, json::Array & caraStyleArray, ITextModel* textModel, int32 stopCount, std::string parentStyleClassName);
+	//std::string getTextFrameData(ITextModel* textModel);
 	json::Object getSpreadDimension(PMRect node);
 	void getTextFrameDimension(IMultiColumnTextFrame* MCF, json::Object & frameObject, PMMatrix pb2page);
 	void generateTextContentFileGetStyle(IMultiColumnTextFrame* MCF, json::Object & frameObject, json::Object& dataObject, std::string frameUIDStr);
 	void ExportTextStyles();
 	void exportSelectionHTML(IDocument* doc);
 	void DocWchResponder::setItemToSnapshot(const UIDRef& itemToSnapshot);
+	std::string getTextFrameDataInStyle(ITextModel* textModel, int32 start, int32 stop);
+	std::string getClassName(std::string styleNameString);
 };
 
 
@@ -585,7 +587,9 @@ void DocWchResponder::documentTraversal(UIDRef docRef, bool16 bAttach) //doc tra
 						frameObject["FrameCoord"] = frameCoordObject;
 					}
 
-					//------------------------------------------------/-/
+					
+					//Image Processing...
+					
 					if (pageItemTypeUtils->IsGraphicFrame(pageItemRef))
 					{
 						InterfacePtr<IHierarchy> frameHierarchy(pageItemRef, UseDefaultIID());
@@ -631,70 +635,33 @@ void DocWchResponder::documentTraversal(UIDRef docRef, bool16 bAttach) //doc tra
 									{
 										if (str[i] == '\\')
 										{
-											//CAlert::InformationAlert("Inside the IF...wow");
-											//str[i] = strcat(str[i], ch);
-											str[i] += '\\';
-											i++;
-											//str[i] = "\\\\";
+											str[i] = '/';
 										}
 									}
 									////// PROBLEM IS WITH PATH STRING.... C:\ABC<----->C:\\ABC..... IF YOU DONE THIS THEN OTHER CODE IS READY.
-									imgfile << endl << imagePathStr << endl << str;
+									//imgfile << endl << imagePathStr << endl << str;
 
 									std::ifstream image;
-									image.open("d:\\try.jpg", ios::in | ios::binary); // input file   CHECK PATH...I HAVE CHANGED IT...CODE WORKS FINE IN CODEBLOCK..
+									image.open(str.c_str(), ios::in | ios::binary); // input file   CHECK PATH...I HAVE CHANGED IT...CODE WORKS FINE IN CODEBLOCK..
 									
 									std::ostringstream oss; // output to string
-									
-
 									int len;
 									char buf[1024];
 									while ((len = image.readsome(buf, 1024)) > 0)
 									{
 										oss.write(buf, len);
 									}
-
 									std::string data = oss.str();
-									
-									//PMString datastr = data;
-									//CAlert::InformationAlert("byte Stream is:" + datastr);
-									/*
-									image.seekg(0, ios::end);
-									int n = image.tellg();
-									image.seekg(0, ios::beg);
-
-									char* res = new char[n];
-									for (int i = 0; i < n; i++)
-										res[i] = '5';
-
-									bool bit = image.eof();
-
-									image.read(res, n);
-									*/
-									//ifstream fl(name);
-									/*
-									image.seekg(0, ios::end);
-									size_t len = image.tellg();
-									char *ret = new char[len];
-									image.seekg(0, ios::beg);
-									image.read(ret, len);
-									image.close();
-									std::string data = ret;
-									*/
-									
 									imgfile <<endl<< data;
 									imgfile.close();
-									
-									
-									//dataObject["frameUIDImage"] = data;
 								}
 							}
 						}
 					}
+					
+					
 
-					//---------------------------------------------------------
-
-
+					
 					frameListArray.push_back(frameObject);
 					frameObject.Clear();
 
@@ -706,7 +673,7 @@ void DocWchResponder::documentTraversal(UIDRef docRef, bool16 bAttach) //doc tra
 				*/
 
 				pageObject["PageIndex"] = pageIndex;
-				pageObject["Frames"] = frameListArray;
+				pageObject["FrameArray"] = frameListArray;
 				pageObject["PageCoord"] = pageCoordObject;
 				pageListArray.push_back(pageObject);
 
@@ -716,10 +683,10 @@ void DocWchResponder::documentTraversal(UIDRef docRef, bool16 bAttach) //doc tra
 			spreadCoordObject = this->getSpreadDimension(spreadPMRect);
 			spreadObject["SpreadDim"] = spreadCoordObject;
 
-			spreadObject["Pages"] = pageListArray;
+			spreadObject["PageArray"] = pageListArray;
 			spreadListArray.push_back(spreadObject);
 		}
-		docObject["Spreads"] = spreadListArray;
+		docObject["SpreadArray"] = spreadListArray;
 
 		wrapper["Structure"] = docObject;
 		wrapper["Data"] = dataObject;
@@ -771,7 +738,7 @@ void DocWchResponder::generateTextContentFileGetStyle(IMultiColumnTextFrame* MCF
 	InterfacePtr<ITextModel> textModel(MCF->QueryTextModel());
 	if (textModel)
 	{
-		dataObject[frameUIDStr] = this->getTextFrameData(textModel);  //spreadIndexStr+pageIndexStr+frameIndexStr  json::Object temp
+		//dataObject[frameUIDStr] = this->getTextFrameData(textModel);  //spreadIndexStr+pageIndexStr+frameIndexStr  json::Object temp
 
 		json::Object frameStyleObject;
 
@@ -780,41 +747,7 @@ void DocWchResponder::generateTextContentFileGetStyle(IMultiColumnTextFrame* MCF
 	}
 }
 
-json::Object DocWchResponder::GetCoordObject(PMRect r)
-{
 
-	json::Object coordObject;
-
-	PMPoint rb = r.RightBottom();
-	PMReal rbx = rb.X();		PMString rbx1;		rbx1.AppendNumber(rbx);		int rbxInt = rbx1.GetAsNumber();
-	PMReal rby = rb.Y();		PMString rby1;		rby1.AppendNumber(rbx);		int rbyInt = rby1.GetAsNumber();
-
-	PMPoint tl = r.LeftTop();
-	PMReal tlx = tl.X();		PMString tlx1;		tlx1.AppendNumber(tlx);		int tlxInt = tlx1.GetAsNumber();
-	PMReal tly = tl.Y();		PMString tly1;		tly1.AppendNumber(tly);		int tlyInt = tly1.GetAsNumber();
-
-	PMPoint rt = r.RightTop();
-	PMReal rtx = rt.X();		PMString rtx1;		rtx1.AppendNumber(rtx);		int rtxInt = rtx1.GetAsNumber();
-	PMReal rty = rt.Y();		PMString rty1;		rty1.AppendNumber(rty);		int rtyInt = rty1.GetAsNumber();
-
-	PMPoint lb = r.LeftBottom();
-	PMReal lbx = lb.X();		PMString lbx1;		lbx1.AppendNumber(lbx);		int lbxInt = lbx1.GetAsNumber();
-	PMReal lby = lb.Y();		PMString lby1;		lby1.AppendNumber(lby);		int lbyInt = lby1.GetAsNumber();
-
-	coordObject["TopLeft-X"] = tlxInt;
-	coordObject["TopLeft-Y"] = tlyInt;
-
-	coordObject["RightTop-X"] = rtxInt;
-	coordObject["RightTop-Y"] = rtyInt;
-
-	coordObject["RightBottom-X"] = rbxInt;
-	coordObject["RightBottom-Y"] = rbyInt;
-
-	coordObject["LeftBottom-X"] = lbxInt;
-	coordObject["LeftBottom-Y"] = lbyInt;
-
-	return coordObject;
-}
 
 json::Object DocWchResponder::charParStyle(ITextModel* textModel)
 {
@@ -889,8 +822,8 @@ json::Object DocWchResponder::charParStyle(ITextModel* textModel)
 		InterfacePtr<IAttributeStrand> ipastrand((IAttributeStrand*)(textModel->QueryStrand(kParaAttrStrandBoss, IID_IATTRIBUTESTRAND)));
 		if (!ipastrand)					{ CAlert::InformationAlert("ipastrand Failed");					break; }
 
-		InterfacePtr<IAttributeStrand> icastrand((IAttributeStrand*)(textModel->QueryStrand(kCharAttrStrandBoss, IID_IATTRIBUTESTRAND)));
-		if (!icastrand)					{ CAlert::InformationAlert("icastrand Failed");					break; }
+		//InterfacePtr<IAttributeStrand> icastrand((IAttributeStrand*)(textModel->QueryStrand(kCharAttrStrandBoss, IID_IATTRIBUTESTRAND)));
+		//if (!icastrand)					{ CAlert::InformationAlert("icastrand Failed");					break; }
 
 		IActiveContext* activeContext = GetExecutionContextSession()->GetActiveContext();
 		if (!activeContext)				{ CAlert::InformationAlert("activeContext Failed");				break; }
@@ -898,19 +831,19 @@ json::Object DocWchResponder::charParStyle(ITextModel* textModel)
 		IWorkspace * theWS = activeContext->GetContextWorkspace();
 
 		json::Array paraStyleArray;
-		json::Array caraStyleArray;
+		//json::Array caraStyleArray;
 
-		this->getParaStyleInformation(ipastrand, theWS, start, count, paraStyleArray);
-		this->getCaraStyleInformation(icastrand, theWS, start, count, caraStyleArray);
+		this->getParaStyleInformation(ipastrand, theWS, start, count, paraStyleArray,textModel);
+		//this->getCaraStyleInformation(icastrand, theWS, start, count, caraStyleArray, textModel);
 
-		frameStyleObject["ParaStyle"] = paraStyleArray;
-		frameStyleObject["CaraStyle"] = caraStyleArray;
+		frameStyleObject["ParaStyleArray"] = paraStyleArray;
+		//frameStyleObject["CaraStyle"] = caraStyleArray;
 
 	} while (kFalse);
 	return frameStyleObject;
 }
 
-void DocWchResponder::getParaStyleInformation(IAttributeStrand* ipastrand, IWorkspace* theWS, int32 start, int32 count, json::Array & paraStyleArray)
+void DocWchResponder::getParaStyleInformation(IAttributeStrand* ipastrand, IWorkspace* theWS, int32 start, int32 count, json::Array & paraStyleArray,ITextModel* textModel)
 {
 	do
 	{
@@ -919,9 +852,10 @@ void DocWchResponder::getParaStyleInformation(IAttributeStrand* ipastrand, IWork
 			break;
 		}
 
-		json::Object styleInfoObject;
+		json::Object paraStyleInfoObject;
 		start = start + count;
 		int32 count2;
+		int32 caraCount = 0;
 
 		int32 count;
 		UID parastyle = ipastrand->GetStyleUID(start, &count2);
@@ -932,7 +866,7 @@ void DocWchResponder::getParaStyleInformation(IAttributeStrand* ipastrand, IWork
 
 		InterfacePtr<IStyleInfo> paraStyleInfo(::GetDataBase(theWS), parastyle, UseDefaultIID());
 		if (!paraStyleInfo)		{ CAlert::InformationAlert("paraStyleInfo failed");	break; }
-
+		/*
 		PMString startCount, totLen;
 		startCount.AppendNumber(start);
 		totLen.AppendNumber(totalTextModelLength);
@@ -940,46 +874,75 @@ void DocWchResponder::getParaStyleInformation(IAttributeStrand* ipastrand, IWork
 		PMString charCount;
 		charCount.AppendNumber(count);
 
-		PMString paraStyleName = paraStyleInfo->GetName();
+		
 		PMString fromCharNumbers;
 		fromCharNumbers.AppendNumber(start);
-		//CAlert::InformationAlert("paraStyleName is:"+paraStyleName+"&&"+fromCharNumbers+" START: "+startCount+" TotLength:"+totLen);
+		*/
+		PMString paraStyleName = paraStyleInfo->GetName();
 		int32 toNum = start + count;
-		PMString toCharNumbers;
-		toCharNumbers.AppendNumber(toNum);
+		
 
 		std::string paraStyleNameString = paraStyleName.GetPlatformString();
-		std::string fromString = fromCharNumbers.GetPlatformString();
-		std::string toString = toCharNumbers.GetPlatformString();
-		std::string charCountStr = charCount.GetPlatformString();
 
-		styleInfoObject["ParaStyleName"] = paraStyleNameString;
-		styleInfoObject["StyleStart"] = start;// fromString;
-		styleInfoObject["CharCount"] = count;// charCountStr;
+		std::string paraStyleClassName = this->getClassName(paraStyleNameString);
+		//std::string fromString = fromCharNumbers.GetPlatformString();
+		//std::string toString = toCharNumbers.GetPlatformString();
+		//std::string charCountStr = charCount.GetPlatformString();
+
+		InterfacePtr<IAttributeStrand> icastrand((IAttributeStrand*)(textModel->QueryStrand(kCharAttrStrandBoss, IID_IATTRIBUTESTRAND)));
+		if (!icastrand)					{ CAlert::InformationAlert("icastrand Failed");					break; }
+		json::Array caraStyleArray;
+		
+		this->getCaraStyleInformation(icastrand, theWS, start, caraCount, caraStyleArray, textModel, toNum, paraStyleClassName);
+
+		paraStyleInfoObject["ParaStyleName"] = paraStyleNameString;
+		paraStyleInfoObject["CaraStyleArray"] = caraStyleArray;// charCountStr;
+		paraStyleInfoObject["StyleClassName"] = paraStyleClassName;
+
+		//paraStyleInfoObject["StyleStart"] = start;// fromString;
+		//paraStyleInfoObject["CharCount"] = count;// charCountStr;
+		
+		caraStyleArray.Clear();
 		if (count != 0)
-			paraStyleArray.push_back(styleInfoObject);
+			paraStyleArray.push_back(paraStyleInfoObject);
 		//textDataFile<<"paraStyleName is:"<<paraStyleNameString<<"\t||applied from char number:"<<fromString<<"\t|| to :"<<toString<<endl;
-		this->getParaStyleInformation(ipastrand, theWS, start, count, paraStyleArray);
+		this->getParaStyleInformation(ipastrand, theWS, start, count, paraStyleArray,textModel);
 
 	} while (kFalse);
 }
 
-void DocWchResponder::getCaraStyleInformation(IAttributeStrand* icastrand, IWorkspace* theWS, int32 start, int32 count, json::Array & caraStyleArray)
+
+
+
+
+void DocWchResponder::getCaraStyleInformation(IAttributeStrand* icastrand, IWorkspace* theWS, int32 start, int32 count, json::Array & caraStyleArray,ITextModel* textModel,int32 stopCount,std::string parentStyleClassName)
 {
 	do
-	{
-		if (totalTextModelLength == start)
+	{		
+		if (stopCount <= start)
 		{
+			//CAlert::InformationAlert("stopCount == start");
 			break;
 		}
-
-		json::Object styleInfoObject;
+	
+		json::Object caraStyleInfoObject;
 		start = start + count;
 		int32 count2;
 
+		if (stopCount <= start)
+		{
+			//CAlert::InformationAlert("stopCount == start2");
+			break;
+		}
 		int32 count;
 		UID carastyle = icastrand->GetStyleUID(start, &count2);
-		count = count2;
+		count = count2;//count==number of characters in the style
+		
+		if (stopCount < (start + count))
+		{
+			//CAlert::InformationAlert("stopCount == start3");
+			count = stopCount-start;
+		}
 
 		IActiveContext* activeContext = GetExecutionContextSession()->GetActiveContext();
 		if (!activeContext)		{ CAlert::InformationAlert("activeContext Failed");	break; }
@@ -987,35 +950,62 @@ void DocWchResponder::getCaraStyleInformation(IAttributeStrand* icastrand, IWork
 		InterfacePtr<IStyleInfo> caraStyleInfo(::GetDataBase(theWS), carastyle, UseDefaultIID());
 		if (!caraStyleInfo)		{ CAlert::InformationAlert("caraStyleInfo failed");	break; }
 
-		PMString caraStyleName = caraStyleInfo->GetName();
+		int32 toNum = start + count;
+		/*
 		PMString fromCharNumbers;
 		fromCharNumbers.AppendNumber(start);
 		//CAlert::InformationAlert("caraStyleName is:"+caraStyleName+" && "+charNumbers);
 
-		int32 toNum = start + count;
-		PMString toCharNumbers;
-		toCharNumbers.AppendNumber(toNum);
-
 		PMString charCount;
 		charCount.AppendNumber(count);
 
-		std::string caraStyleNameString = caraStyleName.GetPlatformString();
+		
 		std::string fromString = fromCharNumbers.GetPlatformString();
 		std::string toString = toCharNumbers.GetPlatformString();
 		std::string charCountStr = charCount.GetPlatformString();
-
-		styleInfoObject["CharaStyleName"] = caraStyleNameString;
-		styleInfoObject["StyleStart"] = start;// fromString;
-		styleInfoObject["CharCount"] = count;// charCountStr;
-
+		*/
+		PMString caraStyleName = caraStyleInfo->GetName();
+		std::string caraStyleNameString = caraStyleName.GetPlatformString();
+		std::string textContentWithinStyle = this->getTextFrameDataInStyle(textModel, start, toNum);
+		std::string caraStyleClassName = this->getClassName(caraStyleNameString);
+		/*if (caraStyleClassName == "")
+		{
+			caraStyleClassName = parentStyleClassName;
+		}*/
+		caraStyleInfoObject["CharaStyleName"] = caraStyleNameString;
+		caraStyleInfoObject["textContent"] = textContentWithinStyle;
+		caraStyleInfoObject["StyleClassName"] = caraStyleClassName;
+		//caraStyleInfoObject["StyleStart"] = start;// fromString;
+		//caraStyleInfoObject["CharCount"] = count;// charCountStr;
+		
 		if (count != 0)
-			caraStyleArray.push_back(styleInfoObject);
+			caraStyleArray.push_back(caraStyleInfoObject);
 
-		this->getCaraStyleInformation(icastrand, theWS, start, count, caraStyleArray);
+		this->getCaraStyleInformation(icastrand, theWS, start, count, caraStyleArray, textModel, stopCount, parentStyleClassName);
 
 	} while (kFalse);
 }
 
+std::string DocWchResponder::getTextFrameDataInStyle(ITextModel* textModel,int32 start,int32 stop)
+{
+	
+	WideString result;
+	PMString fResult;
+	
+	TextIterator begin(textModel, start);
+	TextIterator end(textModel, stop);
+	for (TextIterator iter = begin; iter < end; iter++)
+	{
+		const UTF32TextChar characterCode = *iter;
+		result.Append(characterCode);
+	}
+	fResult.Append(result);
+	std::string textData = fResult.GetPlatformString();
+
+	return textData;
+}
+
+/*
 std::string DocWchResponder::getTextFrameData(ITextModel* textModel)
 {
 	int32 totLength;
@@ -1034,6 +1024,8 @@ std::string DocWchResponder::getTextFrameData(ITextModel* textModel)
 
 	return textData;
 }
+*/
+
 
 json::Object DocWchResponder::getSpreadDimension(PMRect spreadPMRect)
 {
@@ -1191,4 +1183,63 @@ void DocWchResponder::setItemToSnapshot(const UIDRef& itemToSnapshot)
 
 	} while (false);
 
+}
+
+json::Object DocWchResponder::GetCoordObject(PMRect r)
+{
+
+	json::Object coordObject;
+
+	PMPoint rb = r.RightBottom();
+	PMReal rbx = rb.X();		PMString rbx1;		rbx1.AppendNumber(rbx);		int rbxInt = rbx1.GetAsNumber();
+	PMReal rby = rb.Y();		PMString rby1;		rby1.AppendNumber(rbx);		int rbyInt = rby1.GetAsNumber();
+
+	PMPoint tl = r.LeftTop();
+	PMReal tlx = tl.X();		PMString tlx1;		tlx1.AppendNumber(tlx);		int tlxInt = tlx1.GetAsNumber();
+	PMReal tly = tl.Y();		PMString tly1;		tly1.AppendNumber(tly);		int tlyInt = tly1.GetAsNumber();
+
+	PMPoint rt = r.RightTop();
+	PMReal rtx = rt.X();		PMString rtx1;		rtx1.AppendNumber(rtx);		int rtxInt = rtx1.GetAsNumber();
+	PMReal rty = rt.Y();		PMString rty1;		rty1.AppendNumber(rty);		int rtyInt = rty1.GetAsNumber();
+
+	PMPoint lb = r.LeftBottom();
+	PMReal lbx = lb.X();		PMString lbx1;		lbx1.AppendNumber(lbx);		int lbxInt = lbx1.GetAsNumber();
+	PMReal lby = lb.Y();		PMString lby1;		lby1.AppendNumber(lby);		int lbyInt = lby1.GetAsNumber();
+
+	coordObject["TopLeft_X"] = tlxInt;
+	coordObject["TopLeft_Y"] = tlyInt;
+
+	coordObject["RightTop_X"] = rtxInt;
+	coordObject["RightTop_Y"] = rtyInt;
+
+	coordObject["RightBottom_X"] = rbxInt;
+	coordObject["RightBottom_Y"] = rbyInt;
+
+	coordObject["LeftBottom_X"] = lbxInt;
+	coordObject["LeftBottom_Y"] = lbyInt;
+
+	return coordObject;
+}
+
+std::string DocWchResponder::getClassName(std::string styleNameString)
+{
+	std::string str = styleNameString;
+	std::string baseParaString = "Basic-Paragraph";
+
+	if (styleNameString == "NormalParagraphStyle")
+	{
+		return baseParaString;
+	}
+	else if (styleNameString!="[No character style]")
+	{
+		for (int i = 0; i < str.length(); i++)
+		{
+			if (str[i] == ' ')
+			{
+				str[i] = '-';
+			}
+		}
+		return str;
+	}
+	return "";
 }
